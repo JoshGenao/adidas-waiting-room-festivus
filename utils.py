@@ -17,10 +17,16 @@ def get_headless_chrome(user_agent):
     chrome_options = Options()
     chrome_options.add_argument("user-agent={}".format(user_agent))
     chrome_options.add_argument('headless')
-    chrome_options.add_argument('window-size=1200x600')
+    chrome_options.add_argument('disable-gpu')
     # This is the location of the Google Chrome App in Mac
     chrome_options.binary_location = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+    return chrome_options
 
+def get_chrome(user_agent):
+    chrome_options = Options()
+    chrome_options.add_argument("user-agent={}".format(user_agent))
+    chrome_options.add_argument('disable-infobars')
+    return chrome_options
 
 def write_cookies_to_file(cookies, file='cookies.txt'):
     try:

@@ -2,11 +2,10 @@
 import logging, threading, time,json
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.chrome.options import Options
-from utils import write_cookies_to_file, find_path
+from utils import *
 from bs4 import BeautifulSoup as bs
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
+from config import user_config
 
 class Festivus():
     def __init__(self):
@@ -14,7 +13,7 @@ class Festivus():
 
     def start_session(self, url, browser):
         while True:
-            time.sleep(20)
+            time.sleep(user_config.queue_wait_time)
 
             if browser['browser'].session_id not in self.opened_sessions:
                 logging.info("Checking if session {} is past splash".format(browser['browser'].session_id))
@@ -28,9 +27,13 @@ class Festivus():
                         #print(soup.prettify())
                         self.opened_sessions.append(browser['browser'])
                         logging.info("Session {} OPENED: Cookie:\n{}\n".format(browser['browser'].session_id, json.dumps(browser['browser'].get_cookies())))
-                        # TODO: Print out clientID and Site-key
-                        #browser['browser'].set_window_size(1200,600)
-                        self.transfer_session(browser)
+                        site_key = soup.find('div', {'class', 'g-recaptcha'})['data-sitekey']
+                        print("SITE KEY: {}".format(site_key))
+                        if user_config.isheadless:
+                            self.transfer_session(browser)
+                        else:
+                            self.browser_placement(browser)
+                            pass
                         break
                 except Exception as e:
                     # Delete the cookies and try again. Many people thinks this a useful technique
@@ -47,40 +50,68 @@ class Festivus():
         write_cookies_to_file(driver.get_cookies())
 
         url = driver.current_url
-        chrome_options = Options()
-        chrome_options.add_argument("user-agent={}".format(browser['user_agent']))
-        chrome_options.binary_location = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-        chrome_options.add_argument('window-size=1200x600')
-        chrome_options.add_argument('disable-infobars')
+
+        chrome_options = get_chrome(browser['user_agent'])
         chrome = webdriver.Chrome(executable_path=find_path('chromedriver'), chrome_options=chrome_options)
 
-        # open URL
-        chrome.get(url)
-        chrome.implicitly_wait(20)
-        print("Pass implicit wait...")
-        element = WebDriverWait(chrome, 1000).until(EC.presence_of_element_located((By.TAG_NAME, "div")))
-
+        driver.get("http://www.google.com/404page");
         # Transfer Cookies
         chrome.delete_all_cookies()
-        print(type(driver.get_cookies()))
+        chrome.implicitly_wait(3)
         for cookie in driver.get_cookies():
-            new_cookie = {}
-            new_cookie['name'] = cookie['name']
-            #print("Cookie Name: {}".format(cookie['name']))
-            new_cookie['value'] = cookie['value']
-            #print("Cookie Value: {}".format(cookie['value']))
-            chrome.add_cookie(new_cookie)
+
+            url = ''
+            new_cookie = cookie.copy()
+            '''
+            if cookie['secure']:
+                url += 'https://'
+            else:
+                url += 'http://'
+            '''
+            if cookie['domain'].startswith('.'):
+                url += 'www'
+
+            if 'hmac' in cookie:
+                logging.info("\nHMAC FOUND\n")
+
+            url += cookie['domain']
+            new_cookie['domain'] = url
+            print(new_cookie['domain'])
+
+            chrome.add_cookie(cookie)
 
         # Close the headless browser we don't need it anymore
-        driver.close()
-        chrome.refresh()
-        logging.info("\nSession {} TRANSFERRED: Add To Cart NOW\n{}".format(browser['browser'].session_id))
+        #driver.close()
+        # open URL
+        chrome.implicitly_wait(5)
+        if user_config.use_gmail:
+            chrome.get('https://www.gmail.com')
+            chrome.implicitly_wait(10)
+            element = WebDriverWait(chrome, 1000).until(EC.title_contains(user_config.gmail_user))
+
+        if user_config.solemartyr:
+            chrome.get(user_config.stripes_url)
+
+        else:
+            chrome.get(user_config.adidas_site)
+            logging.info("\nSession {} TRANSFERRED: Add To Cart NOW\n")
+
         time.sleep(10000)
 
-    def cookie_transform(self, cookies):
-        url = ""
-        #for cookie in cookies:
+    def browser_placement(self, browser):
+        driver = browser['browser']
+        driver.set_window_position(0, 0)
+        if user_config.use_gmail:
+            driver.get('https://www.gmail.com')
+            driver.implicitly_wait(10)
+            element = WebDriverWait(driver, 1000).until(EC.title_contains(user_config.gmail_user))
 
+        if user_config.solemartyr:
+            driver.get(user_config.stripes_url)
+
+        else:
+            driver.get(user_config.adidas_site)
+            logging.info("\nSession {} TRANSFERRED: Add To Cart NOW\n")
 
     def run_festivus(self, url, browsers):
         for browser in browsers:
